@@ -242,7 +242,7 @@ const handleClose = () => {
 <template>
   <div class="max-container">
     <a class="logo" href="#">
-      <img class="arco-icon" src="/favicon.ico" alt=""/>
+      <img class="arco-icon" src="https://img.lfy.ink/alt.png" alt=""/>
 
       <span>LoexTech Monitor</span>
     </a>

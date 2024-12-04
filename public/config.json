@@ -1,4 +1,4 @@
 {
-  "socket": "ws://192.168.31.64:3000/ws",
-  "apiURL": "http://192.168.31.64:3000"
+  "socket": "wss://status-api.lfy.ink/ws",
+  "apiURL": "https://status-api.lfy.ink"
 }

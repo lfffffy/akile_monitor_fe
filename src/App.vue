@@ -244,11 +244,9 @@ const handleClose = () => {
 <template>
   <div class="max-container">
     <a class="logo" href="#">
-      <svg class="arco-icon" viewBox="0 0 48 48" fill="currentColor">
-        <path data-v-2ee6cb6b="" fill-rule="evenodd" clip-rule="evenodd" d="M42.919 11.923L25 1.577a2 2 0 00-2 0L5.081 11.923a2 2 0 00-1 1.732v20.69a2 2 0 001 1.732L23 46.423a2 2 0 002 0l17.919-10.346a2 2 0 001-1.732v-20.69a2 2 0 00-1-1.732zM30.556 9.525L38.5 14 24 23l-13.808-8.668L17.5 10l6.5 4 6.556-4.475zM22 40.441V26.286L8 17.358v7.928l8 5.464v6.227l6 3.464zm10-3.464l-6 3.464V26.286l14-8.928v8.928l-8 5.464v5.227z" fill="currentColor"></path>
-      </svg>
-      <span>Akile Monitor</span>
-      <small style="font-weight: 400;opacity: .8"> ｜ 全球节点监控</small>
+      <img class="arco-icon" src="https://img.lfy.ink/alt.png" alt=""/>
+
+      <span>LoexTech Monitor</span>
     </a>
     <div class="area-tabs">
       <div class="area-tab-item" :class="selectArea === 'all' ? 'is-active' : ''" @click="handleSelectArea('all')">
@@ -440,8 +438,7 @@ const handleClose = () => {
         <a-button type="primary" status="danger" :long="true" @click="handleDeleteHost">确认删除</a-button>
       </div>
     </a-modal>
-    <div class="footer" style="margin-top: 30px">代码开源在 <a href="https://github.com/akile-network/akile_monitor">GitHub v0.0.1</a></div>
-    <div class="footer" style="margin-bottom: 30px">Copyright © 2023-{{new Date().getFullYear()}} Akile LTD.</div>
+    <div class="footer" style="margin-bottom: 30px">Copyright © 2023-{{new Date().getFullYear()}} LoexTech.</div>
   </div>
 </template>
 

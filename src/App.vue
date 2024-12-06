@@ -312,7 +312,7 @@ provide('handleChangeType', handleChangeType)
   <div class="max-container">
     <div class="header">
       <a class="logo" href="#">
-        <img class="arco-icon" src="https://img.lfy.ink/alt.png" alt=""/>
+        <img class="arco-icon" src="https://img.lfy.ink/alt_gray.png" alt=""/>
         <span>LoexTech Monitor</span>
       </a>
       <a-button class="theme-btn" :shape="'round'" @click="handleChangeDark">
@@ -454,14 +454,6 @@ provide('handleChangeType', handleChangeType)
                   <div class="name">上报时间</div>
                   <div class="value">{{ formatTimeStamp(item.TimeStamp) }}</div>
                 </div>
-                <div class="detail-item" v-if="hostInfo[item.Host.Name] && hostInfo[item.Host.Name].seller">
-                  <div class="name">商家名称</div>
-                  <div class="value">{{ hostInfo[item.Host.Name].seller }}</div>
-                </div>
-                <div class="detail-item" v-if="hostInfo[item.Host.Name] && hostInfo[item.Host.Name].price">
-                  <div class="name">主机价格</div>
-                  <div class="value">{{ hostInfo[item.Host.Name].price }}</div>
-                </div>
                 <div class="detail-item" v-if="hostInfo[item.Host.Name] && hostInfo[item.Host.Name].due_time">
                   <div class="name">到期时间</div>
                   <div class="value">{{ moment(hostInfo[item.Host.Name].due_time).format('YYYY-MM-DD') }}</div>
@@ -524,8 +516,6 @@ provide('handleChangeType', handleChangeType)
       <div class="akile-modal-content">
         <a-date-picker v-model="duetime" placeholder="请选择到期时间"
                        style="margin-bottom: 10px;width: 100%;"></a-date-picker>
-        <a-input v-model="seller" placeholder="请输入卖家" style="margin-bottom: 10px;"></a-input>
-        <a-input v-model="price" placeholder="请输入价格" style="margin-bottom: 10px;"></a-input>
         <a-input-password v-model="authSecret" placeholder="请输入管理密钥"></a-input-password>
       </div>
       <div class="akile-modal-action">

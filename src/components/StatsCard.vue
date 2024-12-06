@@ -58,7 +58,7 @@ const { stats, type } = defineProps({
         <div class="hero-card">
           <div class="title">网络情况</div>
           <div class="value" style="display: block;">
-            <div>
+            <div style="margin-bottom: 5px">
               流量
               <icon-arrow-up style="font-size: 14px;color: #d09453;" />
               <span style="font-size: 14px;color: #d09453;"> {{formatBytes(stats.traffic_up)}}</span>
@@ -91,7 +91,7 @@ const { stats, type } = defineProps({
     border: 2px solid #e5e5e5;
     border-radius: 6px;
     background: #ffffff;
-    min-height: 72px;
+    min-height: 78px;
     box-shadow: 0 2px 4px 0 rgba(133, 138, 180, 0.14);
     cursor: pointer;
 
@@ -121,6 +121,7 @@ const { stats, type } = defineProps({
       display: flex;
       align-items: center;
       .status {
+        margin-top: 6px;
         margin-right: 6px;
         width: 8px;
         height: 8px;
@@ -129,6 +130,7 @@ const { stats, type } = defineProps({
       }
 
       .num {
+        margin-top: 6px;
         font-size: 20px;
         font-weight: 600;
       }

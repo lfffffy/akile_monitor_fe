@@ -1,5 +1,5 @@
 <script setup>
-import {computed, onMounted, ref} from "vue";
+import {computed, onMounted, provide, ref} from "vue";
 import moment from 'moment'
 import CPU from "@/components/CPU.vue";
 import Mem from "@/components/Mem.vue";
@@ -7,12 +7,32 @@ import NetIn from "@/components/NetIn.vue";
 import NetOut from "@/components/NetOut.vue";
 import axios from "axios";
 import { Message } from "@arco-design/web-vue";
+import StatsCard from "@/components/StatsCard.vue";
+import {formatBytes, formatTimeStamp, formatUptime, calculateRemainingDays} from '@/utils/utils'
 
 const socketURL = ref('')
 const apiURL = ref('')
 
+const theme = window.localStorage.getItem('theme') || 'light'
+const dark = ref(theme !== 'light')
+
+const handleChangeDark = () => {
+  dark.value = !dark.value
+
+  if (dark.value) {
+    window.localStorage.setItem('theme','dark')
+    document.body.setAttribute('arco-theme', 'dark')
+  } else {
+    // 恢复亮色主题
+    window.localStorage.setItem('theme','light')
+    document.body.removeAttribute('arco-theme');
+   }
+}
+
 const area = ref([])
 const selectArea = ref('all')
+
+const type = ref('all')
 
 const data = ref([])
 
@@ -29,17 +49,32 @@ const host = computed(() => {
   if (selectArea.value === 'all') {
     return data.value
   }
+
   return data.value.filter(item => item.Host.Name.slice(0, 2) === selectArea.value)
+})
+
+const hosts = computed(() => {
+  if (type.value === 'all') {
+    return host.value
+  } else if (type.value === 'online') {
+    return host.value.filter(item => item.status)
+  } else {
+    return host.value.filter(item => !item.status)
+  }
 })
 
 const stats = computed(() => {
   const online = host.value.filter(item => item.status)
   let bandwidth_up = 0
   let bandwidth_down = 0
+  let traffic_up = 0
+  let traffic_down = 0
 
   host.value.forEach((item) => {
-    bandwidth_up += item.State.NetInSpeed
-    bandwidth_down += item.State.NetOutSpeed
+    bandwidth_up += item.State.NetOutSpeed
+    bandwidth_down += item.State.NetInSpeed
+    traffic_up += item.State.NetOutTransfer
+    traffic_down += item.State.NetInTransfer
   })
 
   return {
@@ -47,7 +82,9 @@ const stats = computed(() => {
     online: online.length,
     offline: host.value.length - online.length,
     bandwidth_up: bandwidth_up,
-    bandwidth_down: bandwidth_down
+    bandwidth_down: bandwidth_down,
+    traffic_up: traffic_up,
+    traffic_down: traffic_down
   }
 })
 
@@ -87,7 +124,7 @@ const initScoket = async () => {
           }
         }
 
-        if (charts.value[host.Host.Name].cpu.length == 60) {
+        if (charts.value[host.Host.Name].cpu.length == 2) {
           charts.value[host.Host.Name].cpu = charts.value[host.Host.Name].cpu.slice(1)
           charts.value[host.Host.Name].mem = charts.value[host.Host.Name].mem.slice(1)
           charts.value[host.Host.Name].net_in = charts.value[host.Host.Name].net_in.slice(1)
@@ -96,8 +133,8 @@ const initScoket = async () => {
 
         charts.value[host.Host.Name].cpu.push([host.TimeStamp * 1000, host.State.CPU])
         charts.value[host.Host.Name].mem.push([host.TimeStamp * 1000, host.State.MemUsed])
-        charts.value[host.Host.Name].net_in.push([host.TimeStamp * 1000, host.State.NetInSpeed])
-        charts.value[host.Host.Name].net_out.push([host.TimeStamp * 1000, host.State.NetOutSpeed])
+        charts.value[host.Host.Name].net_in.push([host.TimeStamp * 1000, host.State.NetOutSpeed])
+        charts.value[host.Host.Name].net_out.push([host.TimeStamp * 1000, host.State.NetInSpeed])
 
         return {
           ...host,
@@ -128,62 +165,14 @@ const sendPing = () => {
   socket.send('ping')
 }
 
-onMounted(() => {
-  initScoket()
+onMounted(async() => {
+  if (dark.value) {
+    document.body.setAttribute('arco-theme', 'dark')
+  }
+
+  await initScoket()
+  handleFetchHostInfo()
 })
-
-// 格式化字节单位
-const formatBytes = (bytes) => {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0;
-  while (bytes >= 1024 && i < units.length - 1) {
-    bytes /= 1024;
-    i++;
-  }
-  return bytes.toFixed(2) + ' ' + units[i];
-}
-
-// 格式化字节单位
-const formatMem = (bytes) => {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0;
-  while (bytes >= 1024 && i < units.length - 1) {
-    bytes /= 1024;
-    i++;
-  }
-  return bytes.toFixed(2) + ' ' + units[i];
-}
-
-// 格式化系统时间为小时:分钟:秒
-const formatTime = (seconds) => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-  return `${hours}小时 ${minutes}分钟 ${remainingSeconds}秒`;
-}
-
-// 格式化时间戳为可读的日期格式
-const formatTimeStamp = (timestamp) => {
-  const date = new Date(timestamp * 1000); // 转换为毫秒
-  const year = date.getFullYear();
-  const month = ('0' + (date.getMonth() + 1)).slice(-2);
-  const day = ('0' + date.getDate()).slice(-2);
-  const hours = ('0' + date.getHours()).slice(-2);
-  const minutes = ('0' + date.getMinutes()).slice(-2);
-  const seconds = ('0' + date.getSeconds()).slice(-2);
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
-
-const formatUptime = (seconds) => {
-  const days = Math.floor(seconds / (24 * 3600));
-  seconds %= 24 * 3600;
-  const hours = Math.floor(seconds / 3600);
-  seconds %= 3600;
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-
-  return `${days}d ${hours}h ${minutes}m ${secs}s`;
-}
 
 const progressStatus = (value) => {
   if (value < 80) {
@@ -191,7 +180,7 @@ const progressStatus = (value) => {
   } else if (value < 90) {
     return 'warning';
   } else {
-    return 'error';
+    return 'danger';
   }
 }
 
@@ -214,7 +203,7 @@ const authSecret = ref('')
 const deleteHostName = ref('')
 
 const handleShowDelete = (name) => {
-  authSecret.value = ''
+  authSecret.value =  window.localStorage.getItem('auth_secret') || ''
   deleteHostName.value = name
   deleteVisible.value = true
 }
@@ -225,6 +214,8 @@ const handleDeleteHost = async () => {
       "auth_secret": authSecret.value,
       "name": deleteHostName.value
     })
+
+    window.localStorage.setItem('auth_secret', authSecret.value)
 
     Message.success('删除成功')
 
@@ -238,16 +229,102 @@ const handleClose = () => {
   deleteVisible.value = false
 }
 
+const hostInfo = ref({})
+
+const handleFetchHostInfo = async () => {
+  try {
+    const res = await axios.get(apiURL.value + '/info')
+    res.data.forEach((item) => {
+      hostInfo.value[item.name] = item
+    })
+  } catch (e) {
+    // Message.error('删除失败，管理密钥错误')
+  }
+}
+
+const handleChangeType = (value) => {
+  type.value = value
+}
+
+const editHostName = ref('')
+const duetime = ref(0)
+const buy_url = ref('')
+const seller = ref('')
+const price = ref('')
+
+const editVisible = ref(false)
+
+const handleShowEdit = (name) => {
+  if (!hostInfo.value[name]) {
+    editHostName.value = name
+    duetime.value = 0
+    buy_url.value = ''
+    seller.value = ''
+    price.value = ''
+    editVisible.value = true
+    authSecret.value = window.localStorage.getItem('auth_secret') || ''
+    return
+  }
+
+  editHostName.value = name
+  duetime.value = hostInfo.value[name].due_time
+  buy_url.value = hostInfo.value[name].buy_url
+  seller.value = hostInfo.value[name].seller
+  price.value = hostInfo.value[name].price
+  editVisible.value = true
+  authSecret.value = window.localStorage.getItem('auth_secret') || ''
+
+}
+
+const handleEditHost = async () => {
+  try {
+    await axios.post(apiURL.value + '/info', {
+      "name": editHostName.value,
+      "due_time": new Date(duetime.value).getTime(),
+      "buy_url": buy_url.value,
+      "seller": seller.value,
+      "auth_secret": authSecret.value,
+      "price": price.value
+    })
+
+    window.localStorage.setItem('auth_secret', authSecret.value)
+
+    Message.success('更新成功')
+
+    handleFetchHostInfo()
+
+    editVisible.value = false
+  } catch (e) {
+    Message.error('更新失败，管理密钥错误')
+  }
+
+}
+
+const handleEditClose = () => {
+  editVisible.value = false
+}
+
+provide('handleChangeType', handleChangeType)
 
 </script>
 
 <template>
   <div class="max-container">
-    <a class="logo" href="#">
-      <img class="arco-icon" src="https://img.lfy.ink/alt.png" alt=""/>
-
-      <span>LoexTech Monitor</span>
-    </a>
+    <div class="header">
+      <a class="logo" href="#">
+        <svg class="arco-icon" viewBox="0 0 48 48" fill="currentColor">
+          <path data-v-2ee6cb6b="" fill-rule="evenodd" clip-rule="evenodd" d="M42.919 11.923L25 1.577a2 2 0 00-2 0L5.081 11.923a2 2 0 00-1 1.732v20.69a2 2 0 001 1.732L23 46.423a2 2 0 002 0l17.919-10.346a2 2 0 001-1.732v-20.69a2 2 0 00-1-1.732zM30.556 9.525L38.5 14 24 23l-13.808-8.668L17.5 10l6.5 4 6.556-4.475zM22 40.441V26.286L8 17.358v7.928l8 5.464v6.227l6 3.464zm10-3.464l-6 3.464V26.286l14-8.928v8.928l-8 5.464v5.227z" fill="currentColor"></path>
+        </svg>
+        <span>Akile Monitor</span>
+        <small style="font-weight: 400;opacity: .8"> ｜ 全球节点监控</small>
+      </a>
+      <a-button class="theme-btn" :shape="'round'" @click="handleChangeDark">
+        <template #icon>
+          <icon-sun-fill v-if="!dark" />
+          <icon-moon-fill v-else />
+        </template>
+      </a-button>
+    </div>
     <div class="area-tabs">
       <div class="area-tab-item" :class="selectArea === 'all' ? 'is-active' : ''" @click="handleSelectArea('all')">
         全部地区
@@ -256,51 +333,9 @@ const handleClose = () => {
         <span :class="`flag-icon flag-icon-${item.replace('UK', 'GB').toLowerCase()}`" style="margin-right: 3px;"></span> {{item}}
       </div>
     </div>
-    <div class="hero">
-      <a-row :gutter="20">
-        <a-col :span="6" :xs="24" :sm="24" :md="6" :lg="6" :sl="6">
-          <div class="hero-card">
-            <div class="title">服务器总数</div>
-            <div class="value">
-              <div class="status" style="background: #005fe7;"></div>
-              <span class="num">{{stats.total}} 台</span>
-            </div>
-          </div>
-        </a-col>
-        <a-col :span="6" :xs="24" :sm="24" :md="6" :lg="6" :sl="6">
-          <div class="hero-card">
-            <div class="title">在线服务器</div>
-            <div class="value">
-              <div class="status" style="background: #1fb416;"></div>
-              <span class="num">{{stats.online}} 台</span>
-            </div>
-          </div>
-        </a-col>
-        <a-col :span="6" :xs="24" :sm="24" :md="6" :lg="6" :sl="6">
-          <div class="hero-card">
-            <div class="title">离线服务器</div>
-            <div class="value">
-              <div class="status" style="background: #b41616;"></div>
-              <span class="num">{{stats.offline}} 台</span>
-            </div>
-          </div>
-        </a-col>
-        <a-col :span="6" :xs="24" :sm="24" :md="6" :lg="6" :sl="6">
-          <div class="hero-card">
-            <div class="title">实时带宽</div>
-            <div class="value">
-              <icon-arrow-up style="font-size: 20px;" />
-              <span style="font-size: 16px;"> {{formatBytes(stats.bandwidth_up)}}/s</span>
-
-              <icon-arrow-down style="font-size: 20px;" />
-              <span style="font-size: 16px;">{{formatBytes(stats.bandwidth_down)}}/s</span>
-            </div>
-          </div>
-        </a-col>
-      </a-row>
-    </div>
+    <StatsCard :type="type" :stats="stats" @handleChangeType="handleChangeType" />
     <div class="monitor-card">
-      <div class="monitor-item" :class="selectHost === item.Host.Name ? 'is-active' : ''" v-for="(item, index) in host" @click="handleSelectHost(item.Host.Name)" :key="index">
+      <div class="monitor-item" :class="selectHost === item.Host.Name ? 'is-active' : ''" v-for="(item, index) in hosts" @click="handleSelectHost(item.Host.Name)" :key="index">
         <div class="name">
           <div class="title">
             <span :class="`flag-icon flag-icon-${item.Host.Name.slice(0, 2).replace('UK', 'GB').toLowerCase()}`"></span>
@@ -332,6 +367,10 @@ const handleClose = () => {
         <div class="average">
           <div class="monitor-item-title">负载平均值(1|5|15)</div>
           <div class="monitor-item-value">{{`${item.State.Load1} | ${item.State.Load5} | ${item.State.Load15}`}}</div>
+        </div>
+        <div class="uptime" style="width: 120px;">
+          <div class="monitor-item-title">剩余时间</div>
+          <div class="monitor-item-value">{{hostInfo[item.Host.Name] ? calculateRemainingDays(hostInfo[item.Host.Name].due_time) : '-'}}</div>
         </div>
         <div class="uptime">
           <div class="monitor-item-title">上报时间</div>
@@ -374,7 +413,11 @@ const handleClose = () => {
                 </div>
                 <div class="detail-item">
                   <div class="name">内存使用情况</div>
-                  <div class="value">{{(item.State.MemUsed / item.Host.MemTotal * 100).toFixed(2) + '%'}} ({{formatMem(item.State.MemUsed)}} / {{formatMem(item.Host.MemTotal)}})</div>
+                  <div class="value">{{(item.State.MemUsed / item.Host.MemTotal * 100).toFixed(2) + '%'}} ({{formatBytes(item.State.MemUsed)}} / {{formatBytes(item.Host.MemTotal)}})</div>
+                </div>
+                <div class="detail-item">
+                  <div class="name">虚拟内存(Swap)</div>
+                  <div class="value">{{formatBytes(item.State.SwapUsed)}} / {{formatBytes(item.Host.SwapTotal)}}</div>
                 </div>
                 <div class="detail-item">
                   <div class="name">网络速度（IN|OUT）</div>
@@ -386,7 +429,7 @@ const handleClose = () => {
                 </div>
                 <div class="detail-item">
                   <div class="name">流量使用↑|↓</div>
-                  <div class="value">{{formatBytes(item.State.NetInTransfer)}} | {{formatBytes(item.State.NetOutTransfer)}}</div>
+                  <div class="value">{{formatBytes(item.State.NetOutTransfer)}} | {{formatBytes(item.State.NetInTransfer)}}</div>
                 </div>
                 <div class="detail-item">
                   <div class="name">开机时间</div>
@@ -395,6 +438,24 @@ const handleClose = () => {
                 <div class="detail-item">
                   <div class="name">上报时间</div>
                   <div class="value">{{formatTimeStamp(item.TimeStamp)}}</div>
+                </div>
+                <div class="detail-item" v-if="hostInfo[item.Host.Name] && hostInfo[item.Host.Name].seller">
+                  <div class="name">商家名称</div>
+                  <div class="value">{{hostInfo[item.Host.Name].seller}}</div>
+                </div>
+                <div class="detail-item" v-if="hostInfo[item.Host.Name] && hostInfo[item.Host.Name].price">
+                  <div class="name">主机价格</div>
+                  <div class="value">{{hostInfo[item.Host.Name].price}}</div>
+                </div>
+                <div class="detail-item" v-if="hostInfo[item.Host.Name] && hostInfo[item.Host.Name].due_time">
+                  <div class="name">到期时间</div>
+                  <div class="value">{{moment(hostInfo[item.Host.Name].due_time).format('YYYY-MM-DD')}}</div>
+                </div>
+                <div class="detail-item" v-if="hostInfo[item.Host.Name] && hostInfo[item.Host.Name].buy_url">
+                  <div class="name">购买链接</div>
+                  <div class="value">
+                    <a style="color: #0077ff" :href="hostInfo[item.Host.Name].buy_url" target="_blank" @click.stop="() => {}">{{hostInfo[item.Host.Name].buy_url}}</a>
+                  </div>
                 </div>
               </div>
             </a-col>
@@ -416,6 +477,9 @@ const handleClose = () => {
             </a-col>
           </a-row>
         </div>
+        <div class="edit-btn" @click.stop="handleShowEdit(item.Host.Name)">
+          <icon-edit />
+        </div>
         <div class="delete-btn" @click.stop="handleShowDelete(item.Host.Name)">
           <icon-delete />
         </div>
@@ -431,18 +495,39 @@ const handleClose = () => {
         </a-button>
       </div>
       <div class="akile-modal-content">
-        <a-input v-model="authSecret" placeholder="请输入管理密钥"></a-input>
+        <a-input-password v-model="authSecret" placeholder="请输入管理密钥"></a-input-password>
         <div class="tips">提示：删除后无法恢复，请确定后再删除操作</div>
       </div>
       <div class="akile-modal-action">
         <a-button type="primary" status="danger" :long="true" @click="handleDeleteHost">确认删除</a-button>
       </div>
     </a-modal>
-    <div class="footer" style="margin-bottom: 30px">Copyright © 2023-{{new Date().getFullYear()}} LoexTech.</div>
+    <a-modal v-model:visible="editVisible" :footer="false" :hide-title="true" width="360px">
+      <div class="akile-modal-title">
+        <span>编辑主机信息</span>
+        <a-button @click="handleEditClose">
+          <template #icon>
+            <icon-close/>
+          </template>
+        </a-button>
+      </div>
+      <div class="akile-modal-content">
+        <a-date-picker v-model="duetime" placeholder="请选择到期时间" style="margin-bottom: 10px;width: 100%;"></a-date-picker>
+        <a-input v-model="seller" placeholder="请输入卖家" style="margin-bottom: 10px;"></a-input>
+        <a-input v-model="price" placeholder="请输入价格" style="margin-bottom: 10px;"></a-input>
+        <a-input v-model="buy_url" placeholder="请输入购买链接" style="margin-bottom: 10px;"></a-input>
+        <a-input-password v-model="authSecret" placeholder="请输入管理密钥"></a-input-password>
+      </div>
+      <div class="akile-modal-action">
+        <a-button type="primary" :long="true" @click="handleEditHost">更新信息</a-button>
+      </div>
+    </a-modal>
+    <div class="footer" style="margin-top: 30px">代码开源在 <a href="https://github.com/akile-network/akile_monitor">GitHub v0.0.1</a></div>
+    <div class="footer" style="margin-bottom: 30px">Copyright © 2023-{{new Date().getFullYear()}} Akile LTD.</div>
   </div>
 </template>
 
-<style lang="scss" scoped>
+<style lang="scss">
 body {
   margin: 0;
   background-color: #fafafa;
@@ -459,6 +544,19 @@ a {
   max-width: 1440px;
 }
 
+.header {
+  margin: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .theme-btn {
+    border: 1px solid #eeeeee!important;
+    background-color: #ffffff!important;
+    color: #333333!important;
+  }
+}
+
 .area-tabs {
   margin: 20px 10px;
 
@@ -468,7 +566,6 @@ a {
     padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
-    transition: .14s all ease-in-out;
     border: 1px solid #e5e5e5;
     background: #ffffff;
     box-shadow: 0 2px 4px 0 rgba(133, 138, 180, 0.14);
@@ -488,44 +585,6 @@ a {
 
 }
 
-.hero {
-  margin: 30px 10px 0px 10px;
-
-  .hero-card {
-    margin-bottom: 20px;
-    padding: 12px 24px;
-    border: 1px solid #e5e5e5;
-    border-radius: 6px;
-    background: #ffffff;
-    min-height: 62px;
-    box-shadow: 0 2px 4px 0 rgba(133, 138, 180, 0.14);
-
-    .title {
-      margin-top: 6px;
-      font-size: 16px;
-      font-weight: 500;
-      margin-bottom: 14px;
-    }
-
-    .value {
-      display: flex;
-      align-items: center;
-      .status {
-        margin-right: 6px;
-        width: 8px;
-        height: 8px;
-        border-radius: 10px;
-        background: #333333;
-      }
-
-      .num {
-        font-size: 20px;
-        font-weight: 600;
-      }
-    }
-  }
-}
-
 .monitor-card {
   position: relative;
   margin: 0 auto;
@@ -541,12 +600,12 @@ a {
     background: #ffffff;
     box-shadow: 0 2px 4px 0 rgba(133, 138, 180, 0.14);
     cursor: pointer;
-    transition: .14s all ease-in-out;
 
     &.is-active {
       background: #e7e7e730;
 
-      .delete-btn {
+      .delete-btn,
+      .edit-btn {
         display: none!important;
       }
 
@@ -561,12 +620,27 @@ a {
     &:hover {
       background: #e7e7e730;
 
-      .delete-btn {
+      .delete-btn,
+      .edit-btn {
         display: flex;
       }
     }
 
-    .delete-btn {
+    .edit-btn {
+      right: 60px!important;
+      background: rgba(22, 131, 255, 0.13)!important;
+
+      &:hover {
+        background: rgba(22, 131, 255, 0.19)!important;
+      }
+
+      .arco-icon {
+        color: #1673ff!important;
+      }
+    }
+
+    .delete-btn,
+    .edit-btn {
       position: absolute;
       right: 20px;
       top: calc(50% - 16px);
@@ -724,7 +798,6 @@ a {
   margin-bottom: 20px;
   position: relative;
   cursor: pointer;
-  margin-left: 13px;
   line-height: 54px;
   height: 54px;
   font-size: 16px;
@@ -782,6 +855,74 @@ a {
   }
 }
 
+body[arco-theme='dark'] {
+  background-color: #111111;
+
+  .arco-modal {
+    background-color: #0e0e0e;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .header {
+    .logo {
+      span,
+      small {
+        color: #ffffff;
+      }
+    }
+
+    .theme-btn {
+      border: 1px solid #333333!important;
+      background-color: #000000!important;
+      color: #ffffff!important;
+    }
+  }
+
+  .area-tabs {
+    .area-tab-item {
+      border-color: #333333;
+      background: #000000;
+      color: #ffffff;
+      box-shadow: none;
+
+      &.is-active {
+        background: #005fe705;
+        color: #005fe7;
+        border: 1px solid #005fe7;
+      }
+    }
+  }
+
+  .footer {
+    color: #ffffffAA;
+  }
+
+  .monitor-card {
+    .monitor-item {
+      border: 1px solid rgb(255 255 255 / 16%);
+      box-shadow: none;
+      background-color: #000000;
+      color: #ffffff;
+
+      &:hover {
+        background-color: #101010;
+      }
+
+      .detail {
+        border-color: #333333AA;
+        .detail-item-list {
+          .detail-item {
+            .name {
+              color: #999999;
+            }
+          }
+        }
+      }
+    }
+  }
+
+}
+
 @media screen and (max-width: 768px) {
   .monitor-item {
     &>div {
@@ -790,7 +931,6 @@ a {
   }
 
   .detail {
-
     .detail-item {
       .name {
         width: 25%!important;

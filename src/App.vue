@@ -312,7 +312,7 @@ provide('handleChangeType', handleChangeType)
   <div class="max-container">
     <div class="header">
       <a class="logo" href="#">
-        <img class="arco-icon" src="https://img.lfy.ink/alt_gray.png" alt=""/>
+        <img class="arco-icon" src="/alt_gray.png" alt=""/>
         <span>LoexTech Monitor</span>
       </a>
       <a-button class="theme-btn" :shape="'round'" @click="handleChangeDark">
